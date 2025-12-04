@@ -1,0 +1,246 @@
+openapi: 3.0.3
+info:
+  title: Reporting Service API
+  description: API de génération de rapports et statistiques pour SuiviPro RATP
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8083
+  - url: http://localhost:3001/api/reports
+
+tags:
+  - name: Reports
+    description: Gestion des rapports
+  - name: Metrics
+    description: Métriques et statistiques
+
+paths:
+  /api/reports:
+    get:
+      tags:
+        - Reports
+      summary: Liste des rapports
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+      responses:
+        '200':
+          description: Liste des rapports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+
+    post:
+      tags:
+        - Reports
+      summary: Créer un rapport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReportRequest'
+      responses:
+        '201':
+          description: Rapport créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+
+  /api/reports/{id}:
+    get:
+      tags:
+        - Reports
+      summary: Récupérer un rapport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Détails du rapport
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+
+  /api/reports/{id}/download:
+    get:
+      tags:
+        - Reports
+      summary: Télécharger un rapport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Fichier du rapport
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /api/reports/export:
+    post:
+      tags:
+        - Reports
+      summary: Exporter des données
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '200':
+          description: Export généré
+
+  /api/metrics:
+    get:
+      tags:
+        - Metrics
+      summary: Récupérer les métriques
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Métriques
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Metric'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Report:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+        createdBy:
+          type: integer
+          format: int64
+        filePath:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+
+    CreateReportRequest:
+      type: object
+      required:
+        - title
+        - type
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [ACTIVITY, USER, INTERVENTION, PLANNING, ASSET]
+        parameters:
+          type: object
+
+    ExportRequest:
+      type: object
+      required:
+        - format
+        - data
+      properties:
+        format:
+          type: string
+          enum: [PDF, EXCEL, CSV]
+        data:
+          type: object
+        fileName:
+          type: string
+
+    Metric:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        metricName:
+          type: string
+        metricValue:
+          type: number
+          format: double
+        metricDate:
+          type: string
+          format: date
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

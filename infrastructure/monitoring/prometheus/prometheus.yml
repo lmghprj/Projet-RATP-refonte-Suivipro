@@ -52,12 +52,43 @@ scrape_configs:
     static_configs:
       - targets: ['admin-service:8084']
 
-  # PostgreSQL Exporter
-  - job_name: 'postgres'
+  # Document Service
+  - job_name: 'document-service'
+    metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['postgres-exporter:9187']
+      - targets: ['document-service:8085']
 
-  # Node Exporter
-  - job_name: 'node'
+  # Planning Service
+  - job_name: 'planning-service'
+    metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['planning-service:8086']
+
+  # Intervention Service
+  - job_name: 'intervention-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['intervention-service:8087']
+
+  # Asset Service
+  - job_name: 'asset-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['asset-service:8088']
+
+  # Timekeeping Service
+  - job_name: 'timekeeping-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['timekeeping-service:8089']
+
+  # RabbitMQ
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15672']
+
+  # MinIO
+  - job_name: 'minio'
+    metrics_path: '/minio/v2/metrics/cluster'
+    static_configs:
+      - targets: ['minio:9000']

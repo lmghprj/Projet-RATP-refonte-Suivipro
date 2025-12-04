@@ -1,0 +1,249 @@
+openapi: 3.0.3
+info:
+  title: Auth Service API
+  description: API de gestion de l'authentification et des autorisations pour SuiviPro RATP
+  version: 1.0.0
+  contact:
+    name: Équipe Technique RATP
+    email: technique@ratp.fr
+
+servers:
+  - url: http://localhost:8081
+    description: Serveur de développement
+  - url: http://localhost:3001/api/auth
+    description: Via API Gateway
+
+tags:
+  - name: Authentication
+    description: Opérations d'authentification
+  - name: Users
+    description: Gestion des utilisateurs
+  - name: Roles
+    description: Gestion des rôles
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Connexion utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  format: password
+                  example: Admin@2024
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Identifiants incorrects
+
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Inscription d'un nouvel utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Utilisateur créé avec succès
+        '400':
+          description: Données invalides
+
+  /api/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Rafraîchir le token
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token rafraîchi
+        '401':
+          description: Token invalide
+
+  /api/auth/profile:
+    get:
+      tags:
+        - Authentication
+      summary: Récupérer le profil de l'utilisateur connecté
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profil utilisateur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Déconnexion
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Déconnexion réussie
+
+  /api/auth/users:
+    get:
+      tags:
+        - Users
+      summary: Liste de tous les utilisateurs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Liste des utilisateurs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  totalElements:
+                    type: integer
+                  totalPages:
+                    type: integer
+
+  /api/auth/roles:
+    get:
+      tags:
+        - Roles
+      summary: Liste de tous les rôles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Liste des rôles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          enum: [ADMIN, MANAGER, USER, GUEST]
+        description:
+          type: string
+
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+        - firstName
+        - lastName
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string

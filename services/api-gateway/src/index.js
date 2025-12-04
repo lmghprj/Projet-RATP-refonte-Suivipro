@@ -108,12 +108,59 @@ app.use('/api/admin', createProxyMiddleware({
   ...proxyOptions,
 }));
 
+// Document Service
+app.use('/api/documents', createProxyMiddleware({
+  target: process.env.DOCUMENT_SERVICE_URL || 'http://document-service:8085',
+  pathRewrite: { '^/api/documents': '/api/documents' },
+  ...proxyOptions,
+}));
+
+// Planning Service
+app.use('/api/plannings', createProxyMiddleware({
+  target: process.env.PLANNING_SERVICE_URL || 'http://planning-service:8086',
+  pathRewrite: { '^/api/plannings': '/api/plannings' },
+  ...proxyOptions,
+}));
+
+// Intervention Service
+app.use('/api/interventions', createProxyMiddleware({
+  target: process.env.INTERVENTION_SERVICE_URL || 'http://intervention-service:8087',
+  pathRewrite: { '^/api/interventions': '/api/interventions' },
+  ...proxyOptions,
+}));
+
+// Asset Service
+app.use('/api/assets', createProxyMiddleware({
+  target: process.env.ASSET_SERVICE_URL || 'http://asset-service:8088',
+  pathRewrite: { '^/api/assets': '/api/assets' },
+  ...proxyOptions,
+}));
+
+// Timekeeping Service
+app.use('/api/timekeeping', createProxyMiddleware({
+  target: process.env.TIMEKEEPING_SERVICE_URL || 'http://timekeeping-service:8089',
+  pathRewrite: { '^/api/timekeeping': '/api/timekeeping' },
+  ...proxyOptions,
+}));
+
 // Route par défaut
 app.get('/', (req, res) => {
   res.json({
     name: 'SuiviPro RATP - API Gateway',
     version: '1.0.0',
     status: 'running',
+    services: {
+      auth: 'http://auth-service:8081',
+      users: 'http://user-service:8080',
+      notifications: 'http://notification-service:8082',
+      reports: 'http://reporting-service:8083',
+      admin: 'http://admin-service:8084',
+      documents: 'http://document-service:8085',
+      planning: 'http://planning-service:8086',
+      interventions: 'http://intervention-service:8087',
+      assets: 'http://asset-service:8088',
+      timekeeping: 'http://timekeeping-service:8089',
+    },
   });
 });
 

@@ -59,6 +59,49 @@ services:
       timeout: 3s
       retries: 5
 
+  # ===== MESSAGE BROKER =====
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - suivipro-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ===== OBJECT STORAGE =====
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - suivipro-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # ===== MICROSERVICES BACKEND =====
 
   auth-service:
@@ -178,6 +221,140 @@ services:
       - suivipro-network
     restart: unless-stopped
 
+  document-service:
+    build:
+      context: ./services/backend/document-service
+      dockerfile: Dockerfile
+    container_name: document-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: documentdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: suivipro-documents
+    ports:
+      - "8085:8085"
+    volumes:
+      - ./logs/document-service:/var/log/document-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  planning-service:
+    build:
+      context: ./services/backend/planning-service
+      dockerfile: Dockerfile
+    container_name: planning-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: planningdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./logs/planning-service:/var/log/planning-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  intervention-service:
+    build:
+      context: ./services/backend/intervention-service
+      dockerfile: Dockerfile
+    container_name: intervention-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: interventiondb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    ports:
+      - "8087:8087"
+    volumes:
+      - ./logs/intervention-service:/var/log/intervention-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  asset-service:
+    build:
+      context: ./services/backend/asset-service
+      dockerfile: Dockerfile
+    container_name: asset-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: assetdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./logs/asset-service:/var/log/asset-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  timekeeping-service:
+    build:
+      context: ./services/backend/timekeeping-service
+      dockerfile: Dockerfile
+    container_name: timekeeping-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: timekeepingdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./logs/timekeeping-service:/var/log/timekeeping-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
   # ===== API GATEWAY =====
 
   api-gateway:
@@ -193,6 +370,11 @@ services:
       NOTIFICATION_SERVICE_URL: http://notification-service:8082
       REPORTING_SERVICE_URL: http://reporting-service:8083
       ADMIN_SERVICE_URL: http://admin-service:8084
+      DOCUMENT_SERVICE_URL: http://document-service:8085
+      PLANNING_SERVICE_URL: http://planning-service:8086
+      INTERVENTION_SERVICE_URL: http://intervention-service:8087
+      ASSET_SERVICE_URL: http://asset-service:8088
+      TIMEKEEPING_SERVICE_URL: http://timekeeping-service:8089
       CORS_ORIGINS: http://localhost:3000
     ports:
       - "3001:3001"
@@ -204,6 +386,11 @@ services:
       - notification-service
       - reporting-service
       - admin-service
+      - document-service
+      - planning-service
+      - intervention-service
+      - asset-service
+      - timekeeping-service
     networks:
       - suivipro-network
     restart: unless-stopped
@@ -290,6 +477,29 @@ services:
       - suivipro-network
     restart: unless-stopped
 
+  # ===== SONARQUBE =====
+
+  sonarqube:
+    image: sonarqube:10-community
+    container_name: sonarqube
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://postgres:5432/sonardb
+      SONAR_JDBC_USERNAME: postgres
+      SONAR_JDBC_PASSWORD: postgres
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: true
+    ports:
+      - "9090:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
   # ===== APACHE SUPERSET =====
 
   superset:
@@ -353,7 +563,7 @@ services:
     image: prom/prometheus:latest
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - ./infrastructure/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -408,9 +618,14 @@ volumes:
   postgres_data:
   mysql_data:
   redis_data:
+  rabbitmq_data:
+  minio_data:
   elasticsearch_data:
   logstash_data:
   kibana_data:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
   superset_data:
   matomo_data:
   prometheus_data:

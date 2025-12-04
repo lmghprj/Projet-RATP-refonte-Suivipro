@@ -1,0 +1,276 @@
+openapi: 3.0.3
+info:
+  title: Intervention Service API
+  description: API de gestion des interventions techniques pour SuiviPro RATP
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8087
+  - url: http://localhost:3001/api/interventions
+
+tags:
+  - name: Interventions
+    description: Gestion des interventions
+  - name: Work Orders
+    description: Ordres de travail
+
+paths:
+  /api/interventions:
+    get:
+      tags:
+        - Interventions
+      summary: Liste des interventions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, URGENT]
+        - name: assignedTo
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Liste des interventions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Intervention'
+
+    post:
+      tags:
+        - Interventions
+      summary: Créer une intervention
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInterventionRequest'
+      responses:
+        '201':
+          description: Intervention créée
+
+  /api/interventions/{id}:
+    get:
+      tags:
+        - Interventions
+      summary: Récupérer une intervention
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Détails de l'intervention
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Intervention'
+
+    put:
+      tags:
+        - Interventions
+      summary: Mettre à jour une intervention
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInterventionRequest'
+      responses:
+        '200':
+          description: Intervention mise à jour
+
+  /api/interventions/{id}/assign:
+    put:
+      tags:
+        - Interventions
+      summary: Assigner une intervention
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                technicianId:
+                  type: integer
+                  format: int64
+      responses:
+        '200':
+          description: Intervention assignée
+
+  /api/interventions/{id}/complete:
+    put:
+      tags:
+        - Interventions
+      summary: Marquer comme terminée
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                report:
+                  type: string
+                resolutionNotes:
+                  type: string
+      responses:
+        '200':
+          description: Intervention terminée
+
+  /api/work-orders:
+    get:
+      tags:
+        - Work Orders
+      summary: Liste des ordres de travail
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Liste des ordres de travail
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Intervention:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [CORRECTIVE, PREVENTIVE, EMERGENCY]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, URGENT]
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
+        assetId:
+          type: integer
+          format: int64
+        assignedTo:
+          type: integer
+          format: int64
+        requestedBy:
+          type: integer
+          format: int64
+        scheduledDate:
+          type: string
+          format: date-time
+        completedDate:
+          type: string
+          format: date-time
+        location:
+          type: string
+        estimatedDuration:
+          type: integer
+        actualDuration:
+          type: integer
+        report:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateInterventionRequest:
+      type: object
+      required:
+        - title
+        - type
+        - priority
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [CORRECTIVE, PREVENTIVE, EMERGENCY]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, URGENT]
+        assetId:
+          type: integer
+          format: int64
+        location:
+          type: string
+        scheduledDate:
+          type: string
+          format: date-time
+        estimatedDuration:
+          type: integer
+
+    UpdateInterventionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, URGENT]
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
+        scheduledDate:
+          type: string
+          format: date-time
