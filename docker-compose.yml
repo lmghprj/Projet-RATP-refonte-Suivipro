@@ -1,0 +1,417 @@
+version: '3.8'
+
+services:
+  # ===== BASES DE DONNÉES =====
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+      - ./logs/postgres:/var/log
+    networks:
+      - suivipro-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: matomo
+      MYSQL_USER: matomo
+      MYSQL_PASSWORD: matomo
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - suivipro-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - suivipro-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ===== MICROSERVICES BACKEND =====
+
+  auth-service:
+    build:
+      context: ./services/backend/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: authdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: ${JWT_SECRET:-ratp-suivipro-secret-key-production}
+      JWT_EXPIRATION: 86400000
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./logs/auth-service:/var/log/auth-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: ./services/backend/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: userdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs/user-service:/var/log/user-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./services/backend/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: notificationdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./logs/notification-service:/var/log/notification-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  reporting-service:
+    build:
+      context: ./services/backend/reporting-service
+      dockerfile: Dockerfile
+    container_name: reporting-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: reportingdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./logs/reporting-service:/var/log/reporting-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  admin-service:
+    build:
+      context: ./services/backend/admin-service
+      dockerfile: Dockerfile
+    container_name: admin-service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: admindb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8084:8084"
+    volumes:
+      - ./logs/admin-service:/var/log/admin-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  # ===== API GATEWAY =====
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8080
+      NOTIFICATION_SERVICE_URL: http://notification-service:8082
+      REPORTING_SERVICE_URL: http://reporting-service:8083
+      ADMIN_SERVICE_URL: http://admin-service:8084
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./logs/api-gateway:/var/log/api-gateway
+    depends_on:
+      - auth-service
+      - user-service
+      - notification-service
+      - reporting-service
+      - admin-service
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  # ===== FRONTEND =====
+
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  # ===== ELK STACK =====
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-changeme}
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ./infrastructure/elk/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    networks:
+      - suivipro-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  logstash:
+    build:
+      context: ./infrastructure/elk/logstash
+      dockerfile: Dockerfile
+    container_name: logstash
+    environment:
+      ELASTIC_USER: elastic
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-changeme}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+    ports:
+      - "5000:5000"
+      - "9600:9600"
+    volumes:
+      - ./logs:/var/log:ro
+      - logstash_data:/usr/share/logstash/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:-changeme}
+    ports:
+      - "5601:5601"
+    volumes:
+      - ./infrastructure/elk/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+      - kibana_data:/usr/share/kibana/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  # ===== APACHE SUPERSET =====
+
+  superset:
+    build:
+      context: ./infrastructure/superset
+      dockerfile: Dockerfile
+    container_name: superset
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-changez-cette-cle-en-production}
+      SUPERSET_DATABASE_URI: postgresql://postgres:postgres@postgres:5432/supersetdb
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:-Admin@2024}
+    ports:
+      - "8088:8088"
+    volumes:
+      - superset_data:/app/superset_home
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  # ===== MATOMO ANALYTICS =====
+
+  matomo:
+    build:
+      context: ./infrastructure/matomo
+      dockerfile: Dockerfile
+    container_name: matomo
+    environment:
+      MATOMO_DATABASE_HOST: mysql
+      MATOMO_DATABASE_DBNAME: matomo
+      MATOMO_DATABASE_USERNAME: matomo
+      MATOMO_DATABASE_PASSWORD: matomo
+    volumes:
+      - matomo_data:/var/www/html
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  matomo-nginx:
+    image: nginx:alpine
+    container_name: matomo-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - matomo_data:/var/www/html:ro
+      - ./infrastructure/matomo/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - matomo
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  # ===== MONITORING =====
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - "3003:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    depends_on:
+      - prometheus
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  # ===== NGINX REVERSE PROXY =====
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - api-gateway
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+networks:
+  suivipro-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mysql_data:
+  redis_data:
+  elasticsearch_data:
+  logstash_data:
+  kibana_data:
+  superset_data:
+  matomo_data:
+  prometheus_data:
+  grafana_data:

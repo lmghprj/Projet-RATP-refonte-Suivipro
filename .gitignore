@@ -1,0 +1,95 @@
+# ===== Fichiers système =====
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*.swo
+*~
+
+# ===== Environnement =====
+.env
+.env.local
+.env.*.local
+
+# ===== Java / Maven =====
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+*.ear
+.mvn/
+mvnw
+mvnw.cmd
+
+# ===== Node.js =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ===== Build =====
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ===== Logs =====
+logs/
+*.log
+*.log.*
+
+# ===== Docker =====
+.docker/
+
+# ===== Base de données =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== Secrets =====
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
+
+# ===== Backup =====
+*.bak
+*.backup
+*.old
+
+# ===== OS =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ===== Tests =====
+coverage/
+.nyc_output/
+test-results/
+
+# ===== Temp =====
+tmp/
+temp/
+*.tmp

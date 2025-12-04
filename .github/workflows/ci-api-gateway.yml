@@ -1,0 +1,47 @@
+name: CI API Gateway
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'services/api-gateway/**'
+      - '.github/workflows/ci-api-gateway.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'services/api-gateway/**'
+
+jobs:
+  test-api-gateway:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/api-gateway/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/api-gateway
+        run: npm ci
+
+      - name: Run tests
+        working-directory: services/api-gateway
+        run: npm test
+
+      - name: Build Docker image
+        run: |
+          docker build -t suivipro-api-gateway:${{ github.sha }} \
+            services/api-gateway
+
+      - name: Run security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: suivipro-api-gateway:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
