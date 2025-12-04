@@ -63,7 +63,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Routes proxy vers les microservices
+// Routes proxy vers les microservices (Architecture DDD)
 const proxyOptions = {
   changeOrigin: true,
   logLevel: 'debug',
@@ -73,73 +73,108 @@ const proxyOptions = {
   },
 };
 
-// Auth Service
-app.use('/api/auth', createProxyMiddleware({
-  target: process.env.AUTH_SERVICE_URL || 'http://auth-service:8081',
-  pathRewrite: { '^/api/auth': '/api/auth' },
+// MS-Agent - Gestion des dossiers agents
+app.use('/api/agents', createProxyMiddleware({
+  target: process.env.MS_AGENT_URL || 'http://ms-agent:8081',
+  pathRewrite: { '^/api/agents': '/api/agents' },
   ...proxyOptions,
 }));
 
-// User Service
-app.use('/api/users', createProxyMiddleware({
-  target: process.env.USER_SERVICE_URL || 'http://user-service:8080',
-  pathRewrite: { '^/api/users': '/api/users' },
+// MS-Habilitation - Gestion des habilitations
+app.use('/api/habilitations', createProxyMiddleware({
+  target: process.env.MS_HABILITATION_URL || 'http://ms-habilitation:8082',
+  pathRewrite: { '^/api/habilitations': '/api/habilitations' },
   ...proxyOptions,
 }));
 
-// Notification Service
-app.use('/api/notifications', createProxyMiddleware({
-  target: process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:8082',
-  pathRewrite: { '^/api/notifications': '/api/notifications' },
+// MS-Formation - Gestion des formations et instructions
+app.use('/api/formations', createProxyMiddleware({
+  target: process.env.MS_FORMATION_URL || 'http://ms-formation:8083',
+  pathRewrite: { '^/api/formations': '/api/formations' },
   ...proxyOptions,
 }));
 
-// Reporting Service
+// MS-Securite - Gestion de la sécurité et des écarts
+app.use('/api/securite', createProxyMiddleware({
+  target: process.env.MS_SECURITE_URL || 'http://ms-securite:8084',
+  pathRewrite: { '^/api/securite': '/api/securite' },
+  ...proxyOptions,
+}));
+
+// MS-PAISF - Gestion PAISF
+app.use('/api/paisf', createProxyMiddleware({
+  target: process.env.MS_PAISF_URL || 'http://ms-paisf:8085',
+  pathRewrite: { '^/api/paisf': '/api/paisf' },
+  ...proxyOptions,
+}));
+
+// MS-Alerte - Gestion des alertes
+app.use('/api/alertes', createProxyMiddleware({
+  target: process.env.MS_ALERTE_URL || 'http://ms-alerte:8086',
+  pathRewrite: { '^/api/alertes': '/api/alertes' },
+  ...proxyOptions,
+}));
+
+// MS-Objectif - Gestion des objectifs et indicateurs
+app.use('/api/objectifs', createProxyMiddleware({
+  target: process.env.MS_OBJECTIF_URL || 'http://ms-objectif:8087',
+  pathRewrite: { '^/api/objectifs': '/api/objectifs' },
+  ...proxyOptions,
+}));
+
+// MS-Reporting - Reporting et BI
 app.use('/api/reports', createProxyMiddleware({
-  target: process.env.REPORTING_SERVICE_URL || 'http://reporting-service:8083',
+  target: process.env.MS_REPORTING_URL || 'http://ms-reporting:8088',
   pathRewrite: { '^/api/reports': '/api/reports' },
   ...proxyOptions,
 }));
 
-// Admin Service
-app.use('/api/admin', createProxyMiddleware({
-  target: process.env.ADMIN_SERVICE_URL || 'http://admin-service:8084',
-  pathRewrite: { '^/api/admin': '/api/admin' },
+// MS-Organisation - Gestion de l'organisation
+app.use('/api/organisation', createProxyMiddleware({
+  target: process.env.MS_ORGANISATION_URL || 'http://ms-organisation:8089',
+  pathRewrite: { '^/api/organisation': '/api/organisation' },
   ...proxyOptions,
 }));
 
-// Document Service
+// MS-IAM - Identity & Access Management
+app.use('/api/auth', createProxyMiddleware({
+  target: process.env.MS_IAM_URL || 'http://ms-iam:8090',
+  pathRewrite: { '^/api/auth': '/api/auth' },
+  ...proxyOptions,
+}));
+
+// MS-Document - Gestion documentaire (GED)
 app.use('/api/documents', createProxyMiddleware({
-  target: process.env.DOCUMENT_SERVICE_URL || 'http://document-service:8085',
+  target: process.env.MS_DOCUMENT_URL || 'http://ms-document:8091',
   pathRewrite: { '^/api/documents': '/api/documents' },
   ...proxyOptions,
 }));
 
-// Planning Service
-app.use('/api/plannings', createProxyMiddleware({
-  target: process.env.PLANNING_SERVICE_URL || 'http://planning-service:8086',
-  pathRewrite: { '^/api/plannings': '/api/plannings' },
+// MS-Integration - Intégration SI
+app.use('/api/integration', createProxyMiddleware({
+  target: process.env.MS_INTEGRATION_URL || 'http://ms-integration:8092',
+  pathRewrite: { '^/api/integration': '/api/integration' },
   ...proxyOptions,
 }));
 
-// Intervention Service
-app.use('/api/interventions', createProxyMiddleware({
-  target: process.env.INTERVENTION_SERVICE_URL || 'http://intervention-service:8087',
-  pathRewrite: { '^/api/interventions': '/api/interventions' },
+// MS-Notification - Gestion des notifications
+app.use('/api/notifications', createProxyMiddleware({
+  target: process.env.MS_NOTIFICATION_URL || 'http://ms-notification:8093',
+  pathRewrite: { '^/api/notifications': '/api/notifications' },
   ...proxyOptions,
 }));
 
-// Asset Service
-app.use('/api/assets', createProxyMiddleware({
-  target: process.env.ASSET_SERVICE_URL || 'http://asset-service:8088',
-  pathRewrite: { '^/api/assets': '/api/assets' },
+// MS-Audit - Audit et traçabilité
+app.use('/api/audit', createProxyMiddleware({
+  target: process.env.MS_AUDIT_URL || 'http://ms-audit:8094',
+  pathRewrite: { '^/api/audit': '/api/audit' },
   ...proxyOptions,
 }));
 
-// Timekeeping Service
-app.use('/api/timekeeping', createProxyMiddleware({
-  target: process.env.TIMEKEEPING_SERVICE_URL || 'http://timekeeping-service:8089',
-  pathRewrite: { '^/api/timekeeping': '/api/timekeeping' },
+// MS-Referentiel - Gestion des référentiels
+app.use('/api/referentiels', createProxyMiddleware({
+  target: process.env.MS_REFERENTIEL_URL || 'http://ms-referentiel:8095',
+  pathRewrite: { '^/api/referentiels': '/api/referentiels' },
   ...proxyOptions,
 }));
 
@@ -147,19 +182,25 @@ app.use('/api/timekeeping', createProxyMiddleware({
 app.get('/', (req, res) => {
   res.json({
     name: 'SuiviPro RATP - API Gateway',
-    version: '1.0.0',
+    version: '2.0.0',
+    architecture: 'DDD (Domain-Driven Design)',
     status: 'running',
     services: {
-      auth: 'http://auth-service:8081',
-      users: 'http://user-service:8080',
-      notifications: 'http://notification-service:8082',
-      reports: 'http://reporting-service:8083',
-      admin: 'http://admin-service:8084',
-      documents: 'http://document-service:8085',
-      planning: 'http://planning-service:8086',
-      interventions: 'http://intervention-service:8087',
-      assets: 'http://asset-service:8088',
-      timekeeping: 'http://timekeeping-service:8089',
+      'ms-agent': { url: 'http://ms-agent:8081', route: '/api/agents', description: 'Gestion des dossiers agents' },
+      'ms-habilitation': { url: 'http://ms-habilitation:8082', route: '/api/habilitations', description: 'Gestion des habilitations' },
+      'ms-formation': { url: 'http://ms-formation:8083', route: '/api/formations', description: 'Gestion des formations et instructions' },
+      'ms-securite': { url: 'http://ms-securite:8084', route: '/api/securite', description: 'Gestion de la sécurité et des écarts' },
+      'ms-paisf': { url: 'http://ms-paisf:8085', route: '/api/paisf', description: 'Gestion PAISF' },
+      'ms-alerte': { url: 'http://ms-alerte:8086', route: '/api/alertes', description: 'Gestion des alertes' },
+      'ms-objectif': { url: 'http://ms-objectif:8087', route: '/api/objectifs', description: 'Gestion des objectifs et indicateurs' },
+      'ms-reporting': { url: 'http://ms-reporting:8088', route: '/api/reports', description: 'Reporting et BI' },
+      'ms-organisation': { url: 'http://ms-organisation:8089', route: '/api/organisation', description: 'Gestion de l\'organisation' },
+      'ms-iam': { url: 'http://ms-iam:8090', route: '/api/auth', description: 'Identity & Access Management' },
+      'ms-document': { url: 'http://ms-document:8091', route: '/api/documents', description: 'Gestion documentaire (GED)' },
+      'ms-integration': { url: 'http://ms-integration:8092', route: '/api/integration', description: 'Intégration SI' },
+      'ms-notification': { url: 'http://ms-notification:8093', route: '/api/notifications', description: 'Gestion des notifications' },
+      'ms-audit': { url: 'http://ms-audit:8094', route: '/api/audit', description: 'Audit et traçabilité' },
+      'ms-referentiel': { url: 'http://ms-referentiel:8095', route: '/api/referentiels', description: 'Gestion des référentiels' },
     },
   });
 });

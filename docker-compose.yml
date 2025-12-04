@@ -61,21 +61,49 @@ services:
 
   # ===== MESSAGE BROKER =====
 
-  rabbitmq:
-    image: rabbitmq:3.12-management-alpine
-    container_name: rabbitmq
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "2181:2181"
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
     networks:
       - suivipro-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - suivipro-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -102,146 +130,251 @@ services:
       timeout: 10s
       retries: 3
 
-  # ===== MICROSERVICES BACKEND =====
+  # ===== MICROSERVICES BACKEND (DDD Architecture) =====
 
-  auth-service:
+  ms-agent:
     build:
-      context: ./services/backend/auth-service
+      context: ./services/backend/ms-agent
       dockerfile: Dockerfile
-    container_name: auth-service
+    container_name: ms-agent
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: authdb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      JWT_SECRET: ${JWT_SECRET:-ratp-suivipro-secret-key-production}
-      JWT_EXPIRATION: 86400000
-      CORS_ORIGINS: http://localhost:3000
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8081:8081"
     volumes:
-      - ./logs/auth-service:/var/log/auth-service
+      - ./logs/ms-agent:/var/log/ms-agent
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     networks:
       - suivipro-network
     restart: unless-stopped
 
-  user-service:
+  ms-habilitation:
     build:
-      context: ./services/backend/user-service
+      context: ./services/backend/ms-habilitation
       dockerfile: Dockerfile
-    container_name: user-service
+    container_name: ms-habilitation
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: userdb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./logs/user-service:/var/log/user-service
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - suivipro-network
-    restart: unless-stopped
-
-  notification-service:
-    build:
-      context: ./services/backend/notification-service
-      dockerfile: Dockerfile
-    container_name: notification-service
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: notificationdb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USERNAME: ${MAIL_USERNAME}
-      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8082:8082"
     volumes:
-      - ./logs/notification-service:/var/log/notification-service
+      - ./logs/ms-habilitation:/var/log/ms-habilitation
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     networks:
       - suivipro-network
     restart: unless-stopped
 
-  reporting-service:
+  ms-formation:
     build:
-      context: ./services/backend/reporting-service
+      context: ./services/backend/ms-formation
       dockerfile: Dockerfile
-    container_name: reporting-service
+    container_name: ms-formation
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: reportingdb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8083:8083"
     volumes:
-      - ./logs/reporting-service:/var/log/reporting-service
+      - ./logs/ms-formation:/var/log/ms-formation
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     networks:
       - suivipro-network
     restart: unless-stopped
 
-  admin-service:
+  ms-securite:
     build:
-      context: ./services/backend/admin-service
+      context: ./services/backend/ms-securite
       dockerfile: Dockerfile
-    container_name: admin-service
+    container_name: ms-securite
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: admindb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8084:8084"
     volumes:
-      - ./logs/admin-service:/var/log/admin-service
+      - ./logs/ms-securite:/var/log/ms-securite
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     networks:
       - suivipro-network
     restart: unless-stopped
 
-  document-service:
+  ms-paisf:
     build:
-      context: ./services/backend/document-service
+      context: ./services/backend/ms-paisf
       dockerfile: Dockerfile
-    container_name: document-service
+    container_name: ms-paisf
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: documentdb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8085:8085"
+    volumes:
+      - ./logs/ms-paisf:/var/log/ms-paisf
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  ms-alerte:
+    build:
+      context: ./services/backend/ms-alerte
+      dockerfile: Dockerfile
+    container_name: ms-alerte
+    environment:
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./logs/ms-alerte:/var/log/ms-alerte
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  ms-objectif:
+    build:
+      context: ./services/backend/ms-objectif
+      dockerfile: Dockerfile
+    container_name: ms-objectif
+    environment:
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8087:8087"
+    volumes:
+      - ./logs/ms-objectif:/var/log/ms-objectif
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  ms-reporting:
+    build:
+      context: ./services/backend/ms-reporting
+      dockerfile: Dockerfile
+    container_name: ms-reporting
+    environment:
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./logs/ms-reporting:/var/log/ms-reporting
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  ms-organisation:
+    build:
+      context: ./services/backend/ms-organisation
+      dockerfile: Dockerfile
+    container_name: ms-organisation
+    environment:
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./logs/ms-organisation:/var/log/ms-organisation
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  ms-iam:
+    build:
+      context: ./services/backend/ms-iam
+      dockerfile: Dockerfile
+    container_name: ms-iam
+    environment:
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:-ratp-suivipro-secret-key-production}
+      JWT_EXPIRATION: 86400000
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./logs/ms-iam:/var/log/ms-iam
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - suivipro-network
+    restart: unless-stopped
+
+  ms-document:
+    build:
+      context: ./services/backend/ms-document
+      dockerfile: Dockerfile
+    container_name: ms-document
+    environment:
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: suivipro-documents
     ports:
-      - "8085:8085"
+      - "8091:8091"
     volumes:
-      - ./logs/document-service:/var/log/document-service
+      - ./logs/ms-document:/var/log/ms-document
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -249,107 +382,93 @@ services:
       - suivipro-network
     restart: unless-stopped
 
-  planning-service:
+  ms-integration:
     build:
-      context: ./services/backend/planning-service
+      context: ./services/backend/ms-integration
       dockerfile: Dockerfile
-    container_name: planning-service
+    container_name: ms-integration
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: planningdb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
-      - "8086:8086"
+      - "8092:8092"
     volumes:
-      - ./logs/planning-service:/var/log/planning-service
+      - ./logs/ms-integration:/var/log/ms-integration
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      kafka:
         condition: service_healthy
     networks:
       - suivipro-network
     restart: unless-stopped
 
-  intervention-service:
+  ms-notification:
     build:
-      context: ./services/backend/intervention-service
+      context: ./services/backend/ms-notification
       dockerfile: Dockerfile
-    container_name: intervention-service
+    container_name: ms-notification
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: interventiondb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
     ports:
-      - "8087:8087"
+      - "8093:8093"
     volumes:
-      - ./logs/intervention-service:/var/log/intervention-service
+      - ./logs/ms-notification:/var/log/ms-notification
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      kafka:
         condition: service_healthy
     networks:
       - suivipro-network
     restart: unless-stopped
 
-  asset-service:
+  ms-audit:
     build:
-      context: ./services/backend/asset-service
+      context: ./services/backend/ms-audit
       dockerfile: Dockerfile
-    container_name: asset-service
+    container_name: ms-audit
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: assetdb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
-      - "8088:8088"
+      - "8094:8094"
     volumes:
-      - ./logs/asset-service:/var/log/asset-service
+      - ./logs/ms-audit:/var/log/ms-audit
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     networks:
       - suivipro-network
     restart: unless-stopped
 
-  timekeeping-service:
+  ms-referentiel:
     build:
-      context: ./services/backend/timekeeping-service
+      context: ./services/backend/ms-referentiel
       dockerfile: Dockerfile
-    container_name: timekeeping-service
+    container_name: ms-referentiel
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: timekeepingdb
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
+      DB_USER: suivipro
+      DB_PASSWORD: suivipro123
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
-      - "8089:8089"
+      - "8095:8095"
     volumes:
-      - ./logs/timekeeping-service:/var/log/timekeeping-service
+      - ./logs/ms-referentiel:/var/log/ms-referentiel
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      kafka:
         condition: service_healthy
     networks:
       - suivipro-network
@@ -365,32 +484,42 @@ services:
     environment:
       PORT: 3001
       NODE_ENV: production
-      AUTH_SERVICE_URL: http://auth-service:8081
-      USER_SERVICE_URL: http://user-service:8080
-      NOTIFICATION_SERVICE_URL: http://notification-service:8082
-      REPORTING_SERVICE_URL: http://reporting-service:8083
-      ADMIN_SERVICE_URL: http://admin-service:8084
-      DOCUMENT_SERVICE_URL: http://document-service:8085
-      PLANNING_SERVICE_URL: http://planning-service:8086
-      INTERVENTION_SERVICE_URL: http://intervention-service:8087
-      ASSET_SERVICE_URL: http://asset-service:8088
-      TIMEKEEPING_SERVICE_URL: http://timekeeping-service:8089
+      MS_AGENT_URL: http://ms-agent:8081
+      MS_HABILITATION_URL: http://ms-habilitation:8082
+      MS_FORMATION_URL: http://ms-formation:8083
+      MS_SECURITE_URL: http://ms-securite:8084
+      MS_PAISF_URL: http://ms-paisf:8085
+      MS_ALERTE_URL: http://ms-alerte:8086
+      MS_OBJECTIF_URL: http://ms-objectif:8087
+      MS_REPORTING_URL: http://ms-reporting:8088
+      MS_ORGANISATION_URL: http://ms-organisation:8089
+      MS_IAM_URL: http://ms-iam:8090
+      MS_DOCUMENT_URL: http://ms-document:8091
+      MS_INTEGRATION_URL: http://ms-integration:8092
+      MS_NOTIFICATION_URL: http://ms-notification:8093
+      MS_AUDIT_URL: http://ms-audit:8094
+      MS_REFERENTIEL_URL: http://ms-referentiel:8095
       CORS_ORIGINS: http://localhost:3000
     ports:
       - "3001:3001"
     volumes:
       - ./logs/api-gateway:/var/log/api-gateway
     depends_on:
-      - auth-service
-      - user-service
-      - notification-service
-      - reporting-service
-      - admin-service
-      - document-service
-      - planning-service
-      - intervention-service
-      - asset-service
-      - timekeeping-service
+      - ms-agent
+      - ms-habilitation
+      - ms-formation
+      - ms-securite
+      - ms-paisf
+      - ms-alerte
+      - ms-objectif
+      - ms-reporting
+      - ms-organisation
+      - ms-iam
+      - ms-document
+      - ms-integration
+      - ms-notification
+      - ms-audit
+      - ms-referentiel
     networks:
       - suivipro-network
     restart: unless-stopped
@@ -618,7 +747,9 @@ volumes:
   postgres_data:
   mysql_data:
   redis_data:
-  rabbitmq_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
   minio_data:
   elasticsearch_data:
   logstash_data:

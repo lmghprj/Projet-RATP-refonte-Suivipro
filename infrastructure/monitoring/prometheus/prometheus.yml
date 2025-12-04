@@ -4,6 +4,7 @@ global:
   external_labels:
     cluster: 'suivipro-ratp'
     environment: 'production'
+    architecture: 'ddd'
 
 # Alertmanager configuration
 alerting:
@@ -15,80 +16,131 @@ alerting:
 rule_files:
   # - "alerts/*.yml"
 
-# Configuration des scrapes
+# Configuration des scrapes - Architecture DDD
 scrape_configs:
   # Prometheus lui-même
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
-  # Auth Service
-  - job_name: 'auth-service'
+  # MS-Agent - Gestion des dossiers agents
+  - job_name: 'ms-agent'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['auth-service:8081']
+      - targets: ['ms-agent:8081']
 
-  # User Service
-  - job_name: 'user-service'
+  # MS-Habilitation - Gestion des habilitations
+  - job_name: 'ms-habilitation'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['user-service:8080']
+      - targets: ['ms-habilitation:8082']
 
-  # Notification Service
-  - job_name: 'notification-service'
+  # MS-Formation - Gestion des formations et instructions
+  - job_name: 'ms-formation'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['notification-service:8082']
+      - targets: ['ms-formation:8083']
 
-  # Reporting Service
-  - job_name: 'reporting-service'
+  # MS-Securite - Gestion de la sécurité et des écarts
+  - job_name: 'ms-securite'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['reporting-service:8083']
+      - targets: ['ms-securite:8084']
 
-  # Admin Service
-  - job_name: 'admin-service'
+  # MS-PAISF - Gestion PAISF
+  - job_name: 'ms-paisf'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['admin-service:8084']
+      - targets: ['ms-paisf:8085']
 
-  # Document Service
-  - job_name: 'document-service'
+  # MS-Alerte - Gestion des alertes
+  - job_name: 'ms-alerte'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['document-service:8085']
+      - targets: ['ms-alerte:8086']
 
-  # Planning Service
-  - job_name: 'planning-service'
+  # MS-Objectif - Gestion des objectifs et indicateurs
+  - job_name: 'ms-objectif'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['planning-service:8086']
+      - targets: ['ms-objectif:8087']
 
-  # Intervention Service
-  - job_name: 'intervention-service'
+  # MS-Reporting - Reporting et BI
+  - job_name: 'ms-reporting'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['intervention-service:8087']
+      - targets: ['ms-reporting:8088']
 
-  # Asset Service
-  - job_name: 'asset-service'
+  # MS-Organisation - Gestion de l'organisation
+  - job_name: 'ms-organisation'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['asset-service:8088']
+      - targets: ['ms-organisation:8089']
 
-  # Timekeeping Service
-  - job_name: 'timekeeping-service'
+  # MS-IAM - Identity & Access Management
+  - job_name: 'ms-iam'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['timekeeping-service:8089']
+      - targets: ['ms-iam:8090']
 
-  # RabbitMQ
-  - job_name: 'rabbitmq'
+  # MS-Document - Gestion documentaire (GED)
+  - job_name: 'ms-document'
+    metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['rabbitmq:15672']
+      - targets: ['ms-document:8091']
 
-  # MinIO
+  # MS-Integration - Intégration SI
+  - job_name: 'ms-integration'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['ms-integration:8092']
+
+  # MS-Notification - Gestion des notifications
+  - job_name: 'ms-notification'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['ms-notification:8093']
+
+  # MS-Audit - Audit et traçabilité
+  - job_name: 'ms-audit'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['ms-audit:8094']
+
+  # MS-Referentiel - Gestion des référentiels
+  - job_name: 'ms-referentiel'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['ms-referentiel:8095']
+
+  # API Gateway
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:3001']
+
+  # Infrastructure - Kafka (via JMX Exporter si configuré)
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9092']
+
+  # Infrastructure - Zookeeper
+  - job_name: 'zookeeper'
+    static_configs:
+      - targets: ['zookeeper:2181']
+
+  # Infrastructure - MinIO
   - job_name: 'minio'
     metrics_path: '/minio/v2/metrics/cluster'
     static_configs:
       - targets: ['minio:9000']
+
+  # Infrastructure - PostgreSQL (via postgres_exporter si configuré)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+
+  # Infrastructure - Elasticsearch
+  - job_name: 'elasticsearch'
+    metrics_path: '/_prometheus/metrics'
+    static_configs:
+      - targets: ['elasticsearch:9200']
