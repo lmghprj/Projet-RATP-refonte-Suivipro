@@ -58,6 +58,17 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
+    service: 'api-gateway',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
+// Health check accessible via /api/health aussi
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'api-gateway',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });

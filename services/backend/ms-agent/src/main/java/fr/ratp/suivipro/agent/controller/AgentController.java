@@ -9,13 +9,19 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/agents")
@@ -25,6 +31,9 @@ import java.util.List;
 public class AgentController {
 
     private final AgentService agentService;
+
+    @Autowired
+    private DataSource dataSource;
 
     @PostMapping
     @Operation(summary = "Créer un nouvel agent")
@@ -97,5 +106,55 @@ public class AgentController {
         log.info("DELETE /api/agents/{} - Deleting agent", id);
         agentService.deleteAgent(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ===== ENDPOINTS DE DEMONSTRATION =====
+
+    @GetMapping("/health")
+    @Operation(summary = "Health check du microservice MS-Agent")
+    public ResponseEntity<Map<String, Object>> healthCheck() {
+        log.info("GET /api/agents/health - Health check");
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "healthy");
+        response.put("service", "ms-agent");
+        response.put("port", 8081);
+        response.put("domain", "agent");
+        response.put("timestamp", LocalDateTime.now().toString());
+        response.put("description", "Microservice de gestion des dossiers agents");
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/db-test")
+    @Operation(summary = "Test de connexion à la base de données PostgreSQL")
+    public ResponseEntity<Map<String, Object>> testDatabaseConnection() {
+        log.info("GET /api/agents/db-test - Testing database connection");
+        Map<String, Object> response = new HashMap<>();
+
+        try (Connection connection = dataSource.getConnection()) {
+            boolean isValid = connection.isValid(5);
+            String databaseProductName = connection.getMetaData().getDatabaseProductName();
+            String databaseProductVersion = connection.getMetaData().getDatabaseProductVersion();
+            String url = connection.getMetaData().getURL();
+
+            response.put("status", "success");
+            response.put("connected", isValid);
+            response.put("database", databaseProductName);
+            response.put("version", databaseProductVersion);
+            response.put("url", url);
+            response.put("timestamp", LocalDateTime.now().toString());
+            response.put("message", "Connexion à la base de données réussie");
+
+            log.info("Database connection test successful: {} {}", databaseProductName, databaseProductVersion);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Database connection test failed", e);
+            response.put("status", "error");
+            response.put("connected", false);
+            response.put("error", e.getMessage());
+            response.put("timestamp", LocalDateTime.now().toString());
+            response.put("message", "Échec de la connexion à la base de données");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
     }
 }

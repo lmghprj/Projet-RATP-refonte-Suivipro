@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import DemoPage from './pages/DemoPage'
 import Layout from './components/Layout'
 
 function App() {
@@ -9,6 +10,9 @@ function App() {
 
   return (
     <Routes>
+      {/* Page de démonstration accessible sans authentification */}
+      <Route path="/demo" element={<DemoPage />} />
+
       <Route path="/login" element={<LoginPage />} />
 
       <Route
